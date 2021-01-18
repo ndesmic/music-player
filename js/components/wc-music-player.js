@@ -76,6 +76,7 @@ export class WcMusicPlayer extends HTMLElement {
 	async open(){
 		this.#handle = await window.showDirectoryPicker();
 		await this.#storage.set("handle", this.#handle);
+		this.classList.remove("inactive");
 		this.getFiles();
 	}
 	async getFiles(){
