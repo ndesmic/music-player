@@ -13,7 +13,11 @@
 	</head>
 	<body>
 		<wc-music-player></wc-music-player>
-		<!--<service-worker url="service-worker.js" scope="./"></service-worker>-->
+		<p>If something isn't working or if you're not sure if the application updated correctly press the button (this will prevent offline access until next refresh):</p>
+		<button id="clear-cache">Clear Network Cache</button>
+		<wc-service-worker url="service-worker.js" scope="./"></wc-service-worker>
 		<script src="js/components/wc-music-player.js" type="module"></script>
+		<script src="js/components/wc-service-worker.js" type="module"></script>
+		<script src="js/app.js" type="module"></script>
 	</body>
 </html>

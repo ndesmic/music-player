@@ -1,11 +1,8 @@
-customElements.define("service-worker",
-class extends HTMLElement {
-	static get observedAttributes() {
-		return ["url", "scope"];
-	}
-	constructor(){
-		super();
-		this.attrs = {};
+class WcServiceWorker extends HTMLElement {
+	#scope = "./";
+	#url = "service-worker.js";
+	static observedAttributes = ["url", "scope"];
+	connectedCallback(){
 		this.installServiceWorker();
 	}
 	async installServiceWorker(){
@@ -27,18 +24,19 @@ class extends HTMLElement {
 		console.error("App Service failed to install", error);
 	}
 	attributeChangedCallback(name, oldValue, newValue) {
-		this.attrs[name] = newValue;
+		this[name] = newValue;
 	}
 	get url(){
-		return this.attrs.url || "service-worker.js";
+		return this.#url;
 	}
 	set url(value){
-		this.attrs.url = value;
+		this.#url = value;
 	}
 	get scope(){
-		return this.attrs.scope || "./";
+		return this.#scope;
 	}
 	set scope(value){
-		this.attrs.scope = value;
+		this.#scope = value;
 	}
-});
+}
+customElements.define("wc-service-worker", WcServiceWorker);
