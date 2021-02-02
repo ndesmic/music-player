@@ -17,9 +17,11 @@ function onInstall(e) {
 
 function onFetch(e) {
 	e.respondWith(
-		caches.match(e.request)
-			.then(response => respondFromCache(e.request, response)
-	));
+		fetch(e.request)
+			.then(response => cacheResponse(e.request, response))
+			.catch(() =>
+				caches.match(e.request))
+	);
 }
 
 function onMessage(e){

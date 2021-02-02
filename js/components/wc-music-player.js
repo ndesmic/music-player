@@ -38,10 +38,10 @@ export class WcMusicPlayer extends HTMLElement {
 		this.shadow = this.attachShadow({ mode: "open" });
 		this.shadow.innerHTML = `
 			<style>
-				:host { height: 320px; width: 480px; display: grid; grid-template-columns: 1fr; grid-template-rows: 2rem 1fr 2rem; background: #efefef; grid-template-areas: "title" "track-list" "controls"; }
+				:host { height: 320px; width: 480px; display: grid; grid-template-columns: 1fr; grid-template-rows: 2rem 1fr 2rem; background: #efefef; grid-template-areas: "title" "track-list" "controls"; overflow: hidden; }
 				:host(:not([ready])) #track-list { filter: blur(2px); }
 				:host(:not([ready])) #toggle-play { display: none; }
-				#title { grid-area: title; margin: 0; whitespace: nowrap; text-overflow: ellipsis; }
+				#title { grid-area: title; margin: 0; white-space: nowrap; text-overflow: ellipsis; }
 				#track-list-container { grid-area: track-list; }
 				#controls { grid-area: controls; }
 				.overflow { overflow-y: auto; }
