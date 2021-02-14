@@ -1,11 +1,5 @@
 const broadcastChannel = new BroadcastChannel("sw");
-const clearCache = document.getElementById("clear-cache");
-
-clearCache.addEventListener("click", () => {
-	navigator.serviceWorker.controller?.postMessage({
-		type: "clear-cache"
-	});
-});
+const musicPlayer = document.querySelector("wc-music-player");
 
 broadcastChannel.addEventListener("message", e => {
 	switch(e.data.type){
@@ -13,3 +7,11 @@ broadcastChannel.addEventListener("message", e => {
 			console.log("Cache cleared!");
 	}
 });
+
+if ("launchQueue" in window) {
+	launchQueue.setConsumer(async launchParams => {
+		if (launchParams.files.length) {
+			musicPlayer.loaded.then(() => musicPlayer.addFiles(launchParams.files, true));
+		}
+	});
+}

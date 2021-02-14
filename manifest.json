@@ -1,24 +1,30 @@
 {
-  "name": "Web App",
-  "short_name" :"App",
+  "name": "Music Player",
+  "short_name" :"Music Player",
   "icons": [
     {
-      "src": "img/icon.svg",
+      "src": "img/icon512.png",
       "sizes": "512x512",
-      "type": "image/xml+svg",
-      "density": 2.0
+      "type": "image/png"
     },
     {
-      "src": "img/icon512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "density": 2.0
-    },
-    {
-      "src": "img/icon192x192.png",
+      "src": "img/icon192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "density": 1.0
+      "type": "image/png"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "index.html",
+      "accept": {
+        "audio/mp3": ".mp3"
+      }
+    },
+    {
+      "action": "index.html",
+      "accept": {
+        "audio/mp4": ".m4a"
+      }
     }
   ],
   "theme_color": "#ff6400",
