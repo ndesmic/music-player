@@ -1,5 +1,7 @@
 import { collectAsyncIterableAsArray, filterAsyncIterable } from "../libs/iterator-tools.js"
 import { IdbStorage } from "../libs/idb-storage.js";
+import { getId3 } from "../libs/mp3-util.js";
+import { readAsArrayBuffer } from "../libs/file-util.js";
 
 export class WcMusicPlayer extends HTMLElement {
 	#handle
@@ -14,7 +16,7 @@ export class WcMusicPlayer extends HTMLElement {
 		super();
 		this.#fileLinks = new WeakMap();
 		this.bind(this);
-		this.loaded = new Promise((res,rej) => this.#setLoaded = res)
+		this.loaded = new Promise((res,rej) => this.#setLoaded = res);
 	}
 	bind(element) {
 		element.attachEvents = element.attachEvents.bind(element);
@@ -27,6 +29,7 @@ export class WcMusicPlayer extends HTMLElement {
 		element.requestPermission = element.requestPermission.bind(element);
 		element.addFiles = element.addFiles.bind(element);
 		element.playFile = element.playFile.bind(element);
+		element.updateDisplay = element.updateDisplay.bind(element);
 	}
 	async connectedCallback() {
 		this.#storage = new IdbStorage({ siloName: "file-handles" });
@@ -35,9 +38,6 @@ export class WcMusicPlayer extends HTMLElement {
 		this.cacheDom();
 		this.attachEvents();
 		this.#setLoaded();
-		if(this.#handle){
-			this.getFiles();
-		}
 	}
 	render() {
 		this.shadow = this.attachShadow({ mode: "open" });
@@ -45,20 +45,55 @@ export class WcMusicPlayer extends HTMLElement {
 			<link rel="stylesheet" href="css/system.css" />
 			<link rel="stylesheet" href="css/neu.css" />
 			<style>
-				:host { height: 320px; width: 480px; display: grid; grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; background: #efefef; grid-template-areas: "title" "track-list" "controls"; overflow: hidden; }
+				:host { 
+					height: 320px; 
+					width: 480px; 
+					display: grid; 
+					grid-template-columns: 1fr 640px;
+					grid-template-rows: auto 1fr auto; 
+					background: #efefef; 
+					grid-template-areas: "title info" "track-list info" "controls controls"; 
+					overflow: hidden; 
+				}
 				:host(:not([ready])) #track-list { filter: blur(2px); }
 				:host(:not([ready])) #toggle-play { display: none; }
 				#title { grid-area: title; margin: 0; white-space: nowrap; text-overflow: ellipsis; margin: 1rem 0; padding-left: 1rem; }
 				#track-list-container { grid-area: track-list; padding-left: 1rem; }
+				#instructions { grid-area: track-list; display: flex; justify-content: center; align-items: center; }
 				#controls { grid-area: controls; background: var(--primary-medium); }
+				#info { grid-area: info; border-left: 1px solid black; height: 100%; padding: 1rem; }
+				#album-art { width: 100%; }
 				button { font-size: 2rem; }
 				button:hover { border: none; }
 				.overflow { overflow-y: auto; }
 				li { list-style: none; }
+				tr td:first-child { font-weight: bold; }
 			</style>
+			<div id="instructions">Click to Start</div>
 			<h1 id="title"></h1>
 			<div class="overflow" id="track-list-container">
 				<ul id="track-list"></ul>
+			</div>
+			<div id="info">
+				<img id="album-art" />
+				<table>
+					<tr>
+						<td>Title</td>
+						<td id="info-title"></td>
+					</tr>
+					<tr>
+						<td>Album</td>
+						<td id="info-album"></td>
+					</tr>
+					<tr>
+						<td>Artist</td>
+						<td id="info-artist"></td>
+					</tr>
+					<tr>
+						<td>Year</td>
+						<td id="info-year"></td>
+					</tr>
+				</table>
 			</div>
 			<div id="controls" class="row">
 				<button id="open" class="neu-button">Open</button>
@@ -70,10 +105,16 @@ export class WcMusicPlayer extends HTMLElement {
 	cacheDom() {
 		this.dom = {
 			title: this.shadowRoot.querySelector("h1"),
+			albumArt: this.shadowRoot.querySelector("#album-art"),
+			infoTitle: this.shadowRoot.querySelector("#info-title"),
+			infoAlbum: this.shadowRoot.querySelector("#info-album"),
+			infoArtist: this.shadowRoot.querySelector("#info-artist"),
+			infoYear: this.shadowRoot.querySelector("#info-year"),
 			audio: this.shadowRoot.querySelector("audio"),
 			list: this.shadowRoot.querySelector("ul"),
 			open: this.shadowRoot.querySelector("#open"),
-			togglePlay: this.shadowRoot.querySelector("#toggle-play")
+			togglePlay: this.shadowRoot.querySelector("#toggle-play"),
+			instructions: this.shadowRoot.querySelector("#instructions")
 		};
 	}
 	attachEvents() {
@@ -85,10 +126,12 @@ export class WcMusicPlayer extends HTMLElement {
 		this.shadowRoot.addEventListener("click", this.selectTrack, false);
 	}
 	async requestPermission(){
+		this.shadowRoot.removeChild(this.dom.instructions);
 		try{
 			await this.#handle.requestPermission({ mode: "read" });
 			this.isReady = true;
 			this.removeEventListener("click", this.requestPermission);
+			this.getFilesFromHandle();
 		} catch(e){};
 	}
 	async open(){
@@ -97,38 +140,62 @@ export class WcMusicPlayer extends HTMLElement {
 		this.isReady = true;
 		this.getFiles();
 	}
-	async getFiles(){
+	async getFilesFromHandle(){
 		this.addFiles(await collectAsyncIterableAsArray(filterAsyncIterable(this.#handle.values(), f => 
 			f.kind === "file" && (f.name.endsWith(".mp3") || f.name.endsWith(".m4a")
 			))));
 	}
 	async selectTrack(e){
-		const fileHandle = this.#fileLinks.get(e.target);
-		if(fileHandle){
-			const file = await fileHandle.getFile();
-			this.playFile(file);
+		const fileWithMeta = this.#fileLinks.get(e.target);
+		if(fileWithMeta){
+			this.playFile(fileWithMeta);
 		}
 	}
-	addFiles(files, shouldPlay = false){
+	async addFiles(files, shouldPlay = false){
 		this.isReady = true;
 		const docFrag = document.createDocumentFragment();
-		files.forEach(f => {
-			this.#files.push(f);
+		const filesWithMeta = []
+
+		for(let file of files){
+			filesWithMeta.push({ file, id3: getId3(await file.getFile().then(f => readAsArrayBuffer(f))) });
+		}
+		
+		for(let fileWithMeta of filesWithMeta){
+			this.#files.push(fileWithMeta);
 			const li = document.createElement("li");
-			li.textContent = f.name;
+			li.textContent = fileWithMeta.id3["TIT2"] ?? fileWithMeta.file.name;
 			docFrag.appendChild(li);
-			this.#fileLinks.set(li, f);
-		});
+			this.#fileLinks.set(li, fileWithMeta);
+		}
+
 		this.dom.list.appendChild(docFrag);
 		if(shouldPlay){
-			files[0].getFile().then(f => this.playFile(f));
+			this.playFile(filesWithMeta[0]);
 		}
 	}
-	playFile(file){
-		const url = URL.createObjectURL(file);
+	async playFile({ file, id3 = {} }){
+		const fileData = await file.getFile();
+		this.updateDisplay({ file, id3 });
+		const url = URL.createObjectURL(fileData);
 		this.dom.audio.src = url;
-		this.dom.title.textContent = file.name;
+		
 		this.togglePlay(true);
+	}
+	updateDisplay({ file, id3 = {}}){
+		this.dom.title.textContent = id3["TIT2"] ?? file.name;
+		this.dom.infoTitle.textContent = id3["TIT2"] ?? file.name;
+		this.dom.infoAlbum.textContent = id3["TALB"] ?? "";
+		this.dom.infoArtist.textContent = id3["TPE1"] ?? "";
+		this.dom.infoYear.textContent = id3["TYER"] ?? "";
+		
+		
+		if(id3["APIC"]){
+			const url = URL.createObjectURL(new Blob([id3["APIC"][0].data]));
+			this.dom.albumArt.src = url;
+			//URL.revokeObjectURL(url);
+		} else {
+			this.dom.albumArt.src = "";
+		}
 	}
 	stop(){
 		this.dom.audio.pause();
